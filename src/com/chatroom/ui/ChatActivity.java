@@ -53,10 +53,10 @@ public class ChatActivity {
 	private Request request = null;
 	private Response response = null;
 	private MessageListener messageListener;
-	private JLabel jLabel_logout;
-	private JLabel jLabel_exit;
-	private JLabel jLabel_live;
-	private JLabel jLabel_theme;
+	private JButton jLabel_logout;
+	private JButton jLabel_exit;
+	private JButton jLabel_live;
+	private JButton jLabel_theme;
 	private JLabel roomLabel;
 	private JPanel headerPanel;
 	private JPanel leftHeader;
@@ -82,11 +82,26 @@ public class ChatActivity {
 		leftBubble = new TextBubbleBorder(false);
 		rightBubble = new TextBubbleBorder(true);
 
-		jLabel_exit = new JLabel(IconFactory.getExitIcon(24));
-		jLabel_live = new JLabel(IconFactory.getUsersIcon(24));
-		jLabel_logout = new JLabel(IconFactory.getLogoutIcon(24));
-		jLabel_theme = new JLabel(IconFactory.getThemeToggleIcon(24));
+		jLabel_exit = new JButton(IconFactory.getExitIcon(24));
+		jLabel_live = new JButton(IconFactory.getUsersIcon(24));
+		jLabel_logout = new JButton(IconFactory.getLogoutIcon(24));
+		jLabel_theme = new JButton(IconFactory.getThemeToggleIcon(24));
 		
+		jLabel_exit.setContentAreaFilled(false);
+		jLabel_live.setContentAreaFilled(false);
+		jLabel_logout.setContentAreaFilled(false);
+		jLabel_theme.setContentAreaFilled(false);
+		
+		jLabel_exit.setBorderPainted(false);
+		jLabel_live.setBorderPainted(false);
+		jLabel_logout.setBorderPainted(false);
+		jLabel_theme.setBorderPainted(false);
+		
+		jLabel_exit.setFocusPainted(false);
+		jLabel_live.setFocusPainted(false);
+		jLabel_logout.setFocusPainted(false);
+		jLabel_theme.setFocusPainted(false);
+
 		jLabel_exit.setToolTipText("Leave Room");
 		jLabel_live.setToolTipText("Online Users");
 		jLabel_logout.setToolTipText("Logout");
@@ -166,12 +181,9 @@ public class ChatActivity {
 	}
 
 	private void ListeningEvents() {
-		jLabel_theme.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				Config.isDarkMode = !Config.isDarkMode;
-				updateTheme();
-			}
+		jLabel_theme.addActionListener(e -> {
+			Config.isDarkMode = !Config.isDarkMode;
+			updateTheme();
 		});
 
 		jBtnSend.addActionListener(e -> {
@@ -180,34 +192,34 @@ public class ChatActivity {
 			isSenderMsg = true;
 		});
 
-		jLabel_logout.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
+		jLabel_logout.addActionListener(e -> {
+			System.out.println("[DEBUG] BUTTON CLICKED: Logout");
+			new Thread(() -> {
 				try {
-					request = new Request(Request.Type.MSG.ordinal(), clientModel.getClientID(), clientModel.getRoomId(), "sv_logout");
-					clientModel.getStreamManager().writeObject(request);
+					Request req = new Request(Request.Type.MSG.ordinal(), clientModel.getClientID(), clientModel.getRoomId(), "sv_logout");
+					clientModel.getStreamManager().writeObject(req);
 				} catch (IOException e1) {}
-			}
+			}).start();
 		});
 
-		jLabel_exit.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
+		jLabel_exit.addActionListener(e -> {
+			System.out.println("[DEBUG] BUTTON CLICKED: Exit Room");
+			new Thread(() -> {
 				try {
-					request = new Request(Request.Type.MSG.ordinal(), clientModel.getClientID(), clientModel.getRoomId(), "sv_exit");
-					clientModel.getStreamManager().writeObject(request);
+					Request req = new Request(Request.Type.MSG.ordinal(), clientModel.getClientID(), clientModel.getRoomId(), "sv_exit");
+					clientModel.getStreamManager().writeObject(req);
 				} catch (IOException e1) {}
-			}
+			}).start();
 		});
 
-		jLabel_live.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
+		jLabel_live.addActionListener(e -> {
+			System.out.println("[DEBUG] BUTTON CLICKED: Show Online Users");
+			new Thread(() -> {
 				try {
-					request = new Request(Request.Type.MSG.ordinal(), clientModel.getClientID(), clientModel.getRoomId(), "sv_showusers");
-					clientModel.getStreamManager().writeObject(request);
+					Request req = new Request(Request.Type.MSG.ordinal(), clientModel.getClientID(), clientModel.getRoomId(), "sv_showusers");
+					clientModel.getStreamManager().writeObject(req);
 				} catch (IOException e1) {}
-			}
+			}).start();
 		});
 
 		jScrollPane.getVerticalScrollBar().addAdjustmentListener(e -> {
@@ -410,20 +422,43 @@ public class ChatActivity {
 	}
 
 	class MessageListener extends Thread {
-		boolean isContinue = true;
+		volatile boolean isContinue = true;
 
 		public void run() {
 			while (isContinue) {
 				try {
-					response = (Response) clientModel.getStreamManager().readObject();
+					final Response resp = (Response) clientModel.getStreamManager().readObject();
 					SwingUtilities.invokeLater(() -> {
-						if (response.getId() == Response.Type.STATUS_MSG.ordinal() || response.getId() == Response.Type.LOGOUT.ordinal()) {
-							if (!response.getContents().equals("sv_exit_successful")) {
-								displayStatusMessages(response.getContents());
+						if (!isContinue) return; // Already exited
+						
+						if (resp.getId() == Response.Type.STATUS_MSG.ordinal() || resp.getId() == Response.Type.LOGOUT.ordinal()) {
+							if (resp.getId() == Response.Type.LOGOUT.ordinal()) {
+								clientModel.setRoomId(-1);
+								clientModel.setClientID(-1);
+								clientModel.getStreamManager().close();
+								isContinue = false;
+								try {
+									new com.chatroom.ui.SignInActivity(new com.chatroom.client.ClientModel(clientModel.getHost(), clientModel.getPort()));
+								} catch (IOException ex) {}
+								jFrame.dispose();
+								return;
 							}
-						} else if (response.getId() == Response.Type.GEN.ordinal()) {
+							if (resp.getContents().equals("sv_exit_successful")) {
+								clientModel.setRoomId(-1);
+								isContinue = false;
+								try {
+									new MainMenuOptions(clientModel);
+								} catch (IOException ex) {
+									ex.printStackTrace();
+								}
+								jFrame.dispose();
+								return;
+							}
+							displayStatusMessages(resp.getContents());
+						} else if (resp.getId() == Response.Type.GEN.ordinal()) {
+							System.out.println("[DEBUG] CLIENT RECEIVED MESSAGE: (Room Members List)");
 							String data = "Online Users:\n\n1. You\n";
-							String temp = response.getContents();
+							String temp = resp.getContents();
 							if (temp != null && !temp.isEmpty()) {
 								String[] arrayOFNames = temp.split(",");
 								int idx = 2;
@@ -433,28 +468,22 @@ public class ChatActivity {
 							}
 							JOptionPane.showMessageDialog(jFrame, data, "Room Members", JOptionPane.INFORMATION_MESSAGE);
 						} else {
-							String msg = response.getContents();
+							String msg = resp.getContents();
+							System.out.println("[DEBUG] CLIENT RECEIVED MESSAGE: " + msg);
+							if (msg == null || !msg.contains(" ")) return;
 							String name = msg.substring(0, msg.indexOf(" "));
 							String content = msg.substring(msg.indexOf(" ") + 1);
-							if (content.equals("sv_typing")) {
-								jLabelTyping.setText(name + " is typing...");
-								typingHideTimer.restart();
+							
+							// Filter out server command echoes
+							if (content.startsWith("sv_typing") || content.startsWith("sv_exit") || content.startsWith("sv_logout") || content.startsWith("sv_showusers")) {
 								return;
 							}
-							if (response.getId() == Response.Type.P_MSG.ordinal()) name += " (Private)";
+							
+							if (resp.getId() == Response.Type.P_MSG.ordinal()) name += " (Private)";
 							setReceiverMessage(name, content);
 						}
 
-						if (response.getContents().equals("sv_exit_successful")) {
-							clientModel.setRoomId(-1); // Reset room ID on exit
-							try {
-								new MainMenuOptions(clientModel);
-							} catch (IOException ex) {
-								ex.printStackTrace();
-							}
-							jFrame.dispose();
-							isContinue = false;
-						} else if (response.getId() == Response.Type.LOGOUT.ordinal() && response.getContents().contains("successfully")) {
+						if (resp.getId() == Response.Type.LOGOUT.ordinal() && resp.getContents().contains("successfully")) {
 							isContinue = false;
 							clientModel.setRoomId(-1);
 							clientModel.setClientID(-1);

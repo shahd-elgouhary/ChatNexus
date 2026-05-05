@@ -105,7 +105,7 @@ public class MainSplash {
 		c.gridheight = 1;
 		c.gridy = 1;
 
-		jLabel = new JLabel(com.chatroom.ui.icons.IconFactory.getLogoIcon(120));
+		jLabel = new JLabel(com.chatroom.ui.icons.IconFactory.getLogoIcon(200));
 		c.insets = new Insets(0, 0, 40, 0);
 		jFrame.add(jLabel, c);
 

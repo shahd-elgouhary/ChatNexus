@@ -1,0 +1,3 @@
+@echo off
+echo Starting ChatNexus Client...
+java -cp "client.jar;lib\flatlaf-3.2.1.jar" com.chatroom.client.ClientExec %*

@@ -45,7 +45,7 @@ public class IconFactory {
         protected abstract void paint(Component c, Graphics2D g2);
     }
 
-    public static Icon getLogoIcon(int size) {
+    private static Icon getVectorLogoIcon(int size) {
         return new VectorIcon(size, size) {
             @Override
             protected void paint(Component c, Graphics2D g2) {
@@ -70,6 +70,23 @@ public class IconFactory {
                 g2.drawString("N", textX, textY);
             }
         };
+    }
+
+    public static Icon getLogoIcon(int size) {
+        try {
+            java.net.URL url = IconFactory.class.getResource("/logo.png");
+            if (url == null) url = IconFactory.class.getResource("/chatnexus-logo.png");
+            if (url != null) {
+                java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(url);
+                java.awt.image.BufferedImage scaled = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                Graphics2D g2d = scaled.createGraphics();
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.drawImage(img, 0, 0, size, size, null);
+                g2d.dispose();
+                return new javax.swing.ImageIcon(scaled);
+            }
+        } catch (Exception e) {}
+        return getVectorLogoIcon(size);
     }
 
     public static Icon getThemeToggleIcon(int size) {
@@ -153,6 +170,20 @@ public class IconFactory {
     }
 
     public static java.awt.Image getLogoImage(int size) {
+        try {
+            java.net.URL url = IconFactory.class.getResource("/logo.png");
+            if (url == null) url = IconFactory.class.getResource("/chatnexus-logo.png");
+            if (url != null) {
+                java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(url);
+                java.awt.image.BufferedImage scaled = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                Graphics2D g2d = scaled.createGraphics();
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.drawImage(img, 0, 0, size, size, null);
+                g2d.dispose();
+                return scaled;
+            }
+        } catch (Exception e) {}
+
         java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = img.createGraphics();
         getLogoIcon(size).paintIcon(null, g2, 0, 0);

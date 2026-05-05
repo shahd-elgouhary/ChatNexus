@@ -145,7 +145,7 @@ public class MainMenuOptions {
 		c.anchor = GridBagConstraints.CENTER;
 
 		int gridy = 0;
-		jLabel = new JLabel(com.chatroom.ui.icons.IconFactory.getLogoIcon(100));
+		jLabel = new JLabel(com.chatroom.ui.icons.IconFactory.getLogoIcon(200));
 		c.gridy = gridy++;
 		c.insets = new Insets(0, 0, 10, 0);
 		jFrame.add(jLabel, c);

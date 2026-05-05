@@ -15,7 +15,7 @@ if "%MYSQL_JAR%"=="" (
     echo [INFO] MySQL connector not found in lib/. Downloading mysql-connector-j-8.0.33.jar...
     curl -L -o "lib\mysql-connector-j-8.0.33.jar" "https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar"
     if errorlevel 1 (
-        echo [ERROR] Failed to download MySQL connector. Please download it manually and place it in the lib/ folder.
+        echo [ERROR] Failed to download MySQL connector.
         exit /b 1
     )
     set "MYSQL_JAR=lib\mysql-connector-j-8.0.33.jar"
@@ -34,8 +34,12 @@ if not exist "%FLATLAF_JAR%" (
     )
 )
 
+echo [INFO] Cleaning previous build...
+if exist bin\com rd /s /q bin\com
+
 echo [INFO] Compiling Java files...
-javac -cp "lib\*" -d bin src\com\chatroom\configuration\*.java src\com\chatroom\others\*.java src\com\chatroom\Database\*.java src\com\chatroom\models\*.java src\com\chatroom\network\*.java src\com\chatroom\server\*.java src\com\chatroom\client\*.java src\com\chatroom\ui\*.java src\com\chatroom\ui\icons\*.java
+dir /s /B src\*.java > sources.txt
+javac -cp "lib/*" --add-modules java.sql -d bin @sources.txt
 
 if errorlevel 1 (
     echo [ERROR] Compilation failed.
@@ -52,8 +56,9 @@ if errorlevel 1 (
 
 echo [INFO] Generating server.jar...
 set "MYSQL_JAR_MF=!MYSQL_JAR:\=/!"
-echo Main-Class: com.chatroom.server.ServerExec > server.mf
-echo Class-Path: !MYSQL_JAR_MF! >> server.mf
+if exist server.mf del server.mf
+(echo Main-Class: com.chatroom.server.ServerExec)> server.mf
+(echo Class-Path: !MYSQL_JAR_MF!)>> server.mf
 "!JAR_CMD!" cfm server.jar server.mf -C bin com/chatroom
 if errorlevel 1 (
     echo [ERROR] Failed to generate server.jar.
@@ -63,8 +68,9 @@ del server.mf
 
 echo [INFO] Generating client.jar...
 set "FLATLAF_JAR_MF=!FLATLAF_JAR:\=/!"
-echo Main-Class: com.chatroom.client.ClientExec > client.mf
-echo Class-Path: !FLATLAF_JAR_MF! >> client.mf
+if exist client.mf del client.mf
+(echo Main-Class: com.chatroom.client.ClientExec)> client.mf
+(echo Class-Path: !FLATLAF_JAR_MF!)>> client.mf
 "!JAR_CMD!" cfm client.jar client.mf -C bin com/chatroom -C res .
 if errorlevel 1 (
     echo [ERROR] Failed to generate client.jar.
@@ -72,5 +78,5 @@ if errorlevel 1 (
 )
 del client.mf
 
-echo [INFO] Build completed successfully! server.jar and client.jar have been created.
+echo [INFO] Build completed successfully!
 endlocal

@@ -247,7 +247,7 @@ public class ViewRoomsActivity {
 		}
 
 		int gridy = 1;
-		jLabel = new JLabel(com.chatroom.ui.icons.IconFactory.getLogoIcon(80));
+		jLabel = new JLabel(com.chatroom.ui.icons.IconFactory.getLogoIcon(100));
 		c.gridy = gridy++;
 		c.insets = new Insets(0, 0, 20, 0);
 		jFrame.add(jLabel, c);

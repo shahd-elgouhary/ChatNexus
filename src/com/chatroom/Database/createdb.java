@@ -17,12 +17,15 @@ public class createdb {
 		try {
 			Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
 			//creating database	
-			connection = DriverManager.getConnection(Config.DATABASE_URL+Config.DATABASE_HOST+Config.DATABASE_PORT,Config.USER_NAME,Config.USER_PWD);
+			String baseUrl = Config.DATABASE_URL + Config.DATABASE_HOST + Config.DATABASE_PORT + "?connectTimeout=3000&socketTimeout=3000";
+			connection = DriverManager.getConnection(baseUrl, Config.USER_NAME, Config.USER_PWD);
 			String Query = "CREATE DATABASE IF NOT EXISTS "+ Config.DATABASE_NAME;
 			statement = connection.createStatement();
 			statement.executeUpdate(Query);
+			
 			//for execute multiple queries separate queries by semicolon
-			connection = DriverManager.getConnection(Config.DATABASE_URL+Config.DATABASE_HOST+Config.DATABASE_PORT+'/'+Config.DATABASE_NAME+"?allowMultiQueries=true",Config.USER_NAME,Config.USER_PWD);
+			String dbUrl = Config.DATABASE_URL + Config.DATABASE_HOST + Config.DATABASE_PORT + '/' + Config.DATABASE_NAME + "?allowMultiQueries=true&connectTimeout=3000&socketTimeout=3000";
+			connection = DriverManager.getConnection(dbUrl, Config.USER_NAME, Config.USER_PWD);
 			String Queries = "CREATE TABLE IF NOT EXISTS " + Config.TABLE_NAME + "(" + Config.CLIENT_ID + " int auto_increment," + Config.CLIENT_NAME + " VARCHAR(50) not null, "+ Config.CLIENT_PWD + " VARCHAR(150), " +"primary key(" +Config.CLIENT_ID+ "))";
 			
 			statement = connection.createStatement();

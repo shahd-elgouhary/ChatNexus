@@ -1,0 +1,3 @@
+@echo off
+echo Starting ChatNexus Server...
+java -cp "server.jar;lib\mysql-connector-java-8.0.17.jar;lib\mysql-connector-j-8.0.33.jar" com.chatroom.server.ServerExec %*

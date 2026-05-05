@@ -57,6 +57,29 @@ class RequestAnalyser extends Thread {
 						String requestContent = request.getContents().trim();
 						String username = requestContent.substring(0, requestContent.indexOf("#"));
 
+						if (Server.useInMemoryAuth) {
+							// In-memory signup
+							if (Server.inMemoryUsers.containsKey(username)) {
+								response = new Response(1, false, "User already present ...");
+							} else {
+								String pwd = requestContent.substring(requestContent.indexOf("#") + 1);
+								clientID = Server.nextInMemoryId++;
+								Server.inMemoryUsers.put(username, pwd);
+								Server.inMemoryUserIds.put(username, clientID);
+								Server.inMemoryIdNames.put(clientID, username);
+								response = new Response(1, true, String.valueOf(clientID));
+								Server.clientHolder.put(clientID, clientThread);
+								Server.messagesTrackHashmap.put(clientID, 0);
+							}
+							Server.responseMakerQueue.add(new ResponseHolder(response, clientThread.streamManager));
+							if (Server.responseMaker.getState() == State.WAITING) {
+								synchronized (Server.responseMaker) {
+									Server.responseMaker.notify();
+								}
+							}
+							break;
+						}
+
 						// first check if the user already exists or not
 						query = "SELECT " + Config.CLIENT_ID + " from " + Config.TABLE_NAME + " WHERE "
 								+ Config.CLIENT_NAME + "=?";
@@ -104,6 +127,26 @@ class RequestAnalyser extends Thread {
 						requestContent = request.getContents().trim();
 						String name = requestContent.substring(0, requestContent.indexOf("#"));
 						String pwd = requestContent.substring(requestContent.indexOf("#") + 1);
+
+						if (Server.useInMemoryAuth) {
+							// In-memory login
+							if (Server.inMemoryUsers.containsKey(name) && Server.inMemoryUsers.get(name).equals(pwd)) {
+								int memId = Server.inMemoryUserIds.get(name);
+								response = new Response(2, true, String.valueOf(memId));
+								Server.clientHolder.put(memId, clientThread);
+								Server.messagesTrackHashmap.put(memId, 0);
+							} else {
+								response = new Response(2, false, "Check your username and password ...");
+							}
+							Server.responseMakerQueue.add(new ResponseHolder(response, clientThread.streamManager));
+							if (Server.responseMaker.getState() == State.WAITING) {
+								synchronized (Server.responseMaker) {
+									Server.responseMaker.notify();
+								}
+							}
+							break;
+						}
+
 						query = "SELECT " + Config.CLIENT_ID + " from " + Config.TABLE_NAME + " WHERE "
 								+ Config.CLIENT_NAME + "=? AND " + Config.CLIENT_PWD + "=?";
 						preparedStatement = Server.connection.prepareStatement(query);
@@ -169,13 +212,9 @@ class RequestAnalyser extends Thread {
 
 						if (Server.listOfRooms.contains(roomId1)) {
 							// insert the client id in the set of the specific room id in hash map
-							if (Server.roomsHolder.get(roomId1).add(clientId)) {
-								response = new Response(Response.Type.JOIN_ROOM.ordinal(), true,
-										"Room #" + roomId1 + " joined successfully ...");
-							} else {
-								response = new Response(Response.Type.JOIN_ROOM.ordinal(), false,
-										"Error while joining room ...");
-							}
+							Server.roomsHolder.get(roomId1).add(clientId);
+							response = new Response(Response.Type.JOIN_ROOM.ordinal(), true,
+									"Room #" + roomId1 + " joined successfully ...");
 						} else {
 							response = new Response(5, false, "Room not found ...");
 						}
@@ -211,6 +250,7 @@ class RequestAnalyser extends Thread {
 						// message
 						if (request.getContents().equals(" ") || request.getContents().equals(""))
 							break;
+						System.out.println("[DEBUG] MESSAGE RECEIVED BY SERVER: " + request.getContents());
 						Server.messagequeue.add(request);
 						if (Server.messageHandler.getState() == State.WAITING) {
 							synchronized (Server.messageHandler) {
@@ -240,7 +280,7 @@ class RequestAnalyser extends Thread {
 	}
 
 	public static void logout(ClientThread clientThread, Request request, int temp) {
-		Response response = new Response(Response.Type.LOGOUT.ordinal(), true, "Logout Succesfully");
+		Response response = new Response(Response.Type.LOGOUT.ordinal(), true, "Logout successfully");
 		Server.responseMakerQueue.add(new ResponseHolder(response, clientThread.streamManager));
 		if (temp == 1) {
 			if (request.getRoomId() != -1)
@@ -304,14 +344,19 @@ class MessageHandler extends Thread {
 					}
 				request = Server.messagequeue.poll();
 
-				query = "SELECT " + Config.CLIENT_NAME + " from " + Config.TABLE_NAME + " WHERE " + Config.CLIENT_ID
-						+ "=?";
-				preparedStatement = Server.connection.prepareStatement(query);
-				preparedStatement.setInt(1, request.getClientId());
-				resultSet = preparedStatement.executeQuery();
+				if (Server.useInMemoryAuth || Server.connection == null) {
+					System.out.println("[DEBUG] IN-MEMORY MESSAGE MODE");
+					sender = Server.inMemoryIdNames.getOrDefault(request.getClientId(), "User" + request.getClientId());
+				} else {
+					query = "SELECT " + Config.CLIENT_NAME + " from " + Config.TABLE_NAME + " WHERE " + Config.CLIENT_ID
+							+ "=?";
+					preparedStatement = Server.connection.prepareStatement(query);
+					preparedStatement.setInt(1, request.getClientId());
+					resultSet = preparedStatement.executeQuery();
 
-				if (resultSet.next())
-					sender = resultSet.getString(1);
+					if (resultSet.next())
+						sender = resultSet.getString(1);
+				}
 
 				Set<Integer> set = Server.roomsHolder.get(request.getRoomId());
 
@@ -326,16 +371,21 @@ class MessageHandler extends Thread {
 				if (personalMessage) {
 					reciever = request.getContents().substring(request.getContents().indexOf("@") + 1,
 							request.getContents().indexOf(" "));
-					query = "SELECT " + Config.CLIENT_ID + " from " + Config.TABLE_NAME + " WHERE " + Config.CLIENT_NAME
-							+ "=?";
-					preparedStatement = Server.connection.prepareStatement(query);
-					preparedStatement.setString(1, reciever);
-					resultSet = preparedStatement.executeQuery();
-					if (!resultSet.isBeforeFirst()) {
-						recieverId = -1;
+					
+					if (Server.useInMemoryAuth || Server.connection == null) {
+						recieverId = Server.inMemoryUserIds.getOrDefault(reciever, -1);
 					} else {
-						resultSet.next();
-						recieverId = resultSet.getInt(1);
+						query = "SELECT " + Config.CLIENT_ID + " from " + Config.TABLE_NAME + " WHERE " + Config.CLIENT_NAME
+								+ "=?";
+						preparedStatement = Server.connection.prepareStatement(query);
+						preparedStatement.setString(1, reciever);
+						resultSet = preparedStatement.executeQuery();
+						if (!resultSet.isBeforeFirst()) {
+							recieverId = -1;
+						} else {
+							resultSet.next();
+							recieverId = resultSet.getInt(1);
+						}
 					}
 					if (recieverId != -1) {
 						if (recieverId == request.getClientId())
@@ -361,6 +411,7 @@ class MessageHandler extends Thread {
 					}
 				}
 
+				System.out.println("[DEBUG] BROADCASTING TO " + set.size() + " CLIENTS");
 				Iterator<Integer> iterator = set.iterator();
 				while (iterator.hasNext()) {
 					int id = iterator.next();
@@ -380,7 +431,6 @@ class MessageHandler extends Thread {
 									LogFileWriter.Log(Config.errors.toString());
 								}
 							} else {
-
 								ClientThread ct = Server.clientHolder.get(id); // gives the client thread object
 								try {
 									if (request.getContents().equals("sv_exit")) {
@@ -414,13 +464,16 @@ class MessageHandler extends Thread {
 										msg = sender + " " + request.getContents();
 								}
 								ClientThread ct = Server.clientHolder.get(id); // gives the client thread object
-								StreamManager oos = ct.streamManager;
-								Response res = null;
-								if (request.getId() == Request.Type.STATUS_MSG.ordinal())
-									res = new Response(Response.Type.STATUS_MSG.ordinal(), true, msg);
-								else
-									res = new Response(Response.Type.MSG.ordinal(), true, msg);
-								oos.writeObject(res);
+								if (ct != null) {
+									StreamManager oos = ct.streamManager;
+									Response res = null;
+									if (request.getId() == Request.Type.STATUS_MSG.ordinal())
+										res = new Response(Response.Type.STATUS_MSG.ordinal(), true, msg);
+									else
+										res = new Response(Response.Type.MSG.ordinal(), true, msg);
+									System.out.println("[DEBUG] BROADCASTING TO CLIENT " + id + ": " + msg);
+									oos.writeObject(res);
+								}
 							}
 
 						}
@@ -487,6 +540,11 @@ public class Server {
 	static HashMap<Integer, Integer> messagesTrackHashmap;
 	static ServerOperations serverOperations;
 	static int roomIdGenerator = 0;
+	static boolean useInMemoryAuth = false;
+	static HashMap<String, String> inMemoryUsers = new HashMap<>();
+	static HashMap<String, Integer> inMemoryUserIds = new HashMap<>();
+	static HashMap<Integer, String> inMemoryIdNames = new HashMap<>();
+	static int nextInMemoryId = 1;
 
 	public Server(int port) {
 		this.port = port;
@@ -509,9 +567,11 @@ public class Server {
 		serverOperations.start();
 
 		try {
-			Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
-			connection = DriverManager.getConnection(Config.DATABASE_URL + "/" + Config.DATABASE_NAME, Config.USER_NAME,
-					Config.USER_PWD);
+			if (!useInMemoryAuth) {
+				Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
+				String dbUrl = Config.DATABASE_URL + Config.DATABASE_HOST + Config.DATABASE_PORT + "/" + Config.DATABASE_NAME + "?connectTimeout=3000&socketTimeout=3000";
+				connection = DriverManager.getConnection(dbUrl, Config.USER_NAME, Config.USER_PWD);
+			}
 		} catch (SQLException | ClassNotFoundException e) {
 			e.printStackTrace(new PrintWriter(Config.errors));
 			LogFileWriter.Log(Config.errors.toString());
@@ -527,7 +587,7 @@ public class Server {
 	@Override
 	protected void finalize() {
 		try {
-			connection.close();
+			if (connection != null) connection.close();
 		} catch (SQLException e) {
 			e.printStackTrace(new PrintWriter(Config.errors));
 			LogFileWriter.Log(Config.errors.toString());
@@ -544,10 +604,14 @@ public class Server {
 	}
 
 	public static String getClientNameFromId(int id) {
+		if (useInMemoryAuth) {
+			String n = inMemoryIdNames.get(id);
+			return n != null ? n : "User" + id;
+		}
 		String name;
 		try {
-			Connection connection = DriverManager.getConnection(Config.DATABASE_URL + "/" + Config.DATABASE_NAME,
-					Config.USER_NAME, Config.USER_PWD);
+			String dbUrl = Config.DATABASE_URL + Config.DATABASE_HOST + Config.DATABASE_PORT + "/" + Config.DATABASE_NAME + "?connectTimeout=3000&socketTimeout=3000";
+			Connection connection = DriverManager.getConnection(dbUrl, Config.USER_NAME, Config.USER_PWD);
 			String sql = "select client_name from users where client_id = ?";
 			java.sql.PreparedStatement preparedStatement = connection.prepareStatement(sql);
 			preparedStatement.setInt(1, id);
@@ -559,7 +623,7 @@ public class Server {
 		} catch (SQLException e) {
 			e.printStackTrace(new PrintWriter(Config.errors));
 			LogFileWriter.Log(Config.errors.toString());
-			return null;
+			return "User" + id;
 		}
 
 	}
@@ -576,14 +640,18 @@ public class Server {
 	public void connect() {
 		try {
 			serverSocket = new ServerSocket(port);
+			System.out.println("STEP 6: Server listening");
+			Message.println("Server successfully started and listening on port " + port);
 			while (true) {
 				socket = serverSocket.accept();
+				System.out.println("[DEBUG] CLIENT CONNECTED: " + socket.getInetAddress());
 				new ClientThread(socket).start();
 
 			}
 		} catch (IOException e) {
-			e.printStackTrace(new PrintWriter(Config.errors));
-			LogFileWriter.Log(Config.errors.toString());
+			System.err.println("CRITICAL ERROR: Failed to bind to port " + port);
+			e.printStackTrace();
+			System.exit(1);
 		}
 	}
 
