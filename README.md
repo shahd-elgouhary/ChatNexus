@@ -1,9 +1,9 @@
-# CHATROOM - LiveChatServer 
+# ChatNexus - LiveChatServer 
 [![forthebadge](https://forthebadge.com/images/badges/made-with-java.svg)](https://forthebadge.com)  [![forthebadge](https://forthebadge.com/images/badges/built-with-love.svg)](https://forthebadge.com)       [![](https://img.shields.io/github/release/iamrohitsuthar/LiveChatServer)](https://github.com/iamrohitsuthar/LiveChatServer/releases/tag/v4.0)                        [![](https://img.shields.io/github/license/iamrohitsuthar/LiveChatServer)](https://github.com/iamrohitsuthar/LiveChatServer/blob/master/LICENSE)
 <table>
 <tr>
 <td>
-LiveChatServer is a Live CHATROOM which allows multiple users (Clients) to chat with each other.
+ChatNexus is your Live CHATROOM which allows multiple users (Clients) to chat with each other.
 </td>
 </tr>
 </table>
@@ -66,20 +66,6 @@ LiveChatServer is a Live CHATROOM which allows multiple users (Clients) to chat 
     ii) Now you can join the above created room by specifying empty name or the spaces you provided while creating the room in join room option.
     iii) This room won't be visible / displayed in the view rooms list!
     
-    
-    
-### Collaborate with us!
-Want to contribute? Great!<br/>
-
-To fix a bug or enhance an existing module, follow these steps:
-
-- Fork the repo
-- Create a new branch (`git checkout -b improve-feature`)
-- Make the appropriate changes in the files
-- Add changes to reflect the changes made
-- Commit your changes (`git commit -am 'Improve feature'`)
-- Push to the branch (`git push origin improve-feature`)
-- Create a Pull Request 
   
  
 ### Bug / Feature Request
